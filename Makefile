@@ -14,7 +14,7 @@ help:
 	@echo "dist - package"
 	@echo "install - install the package to the active Python's site-packages"
 
-clean: clean-build clean-pyc clean-test
+clean: clean-build clean-pyc clean-test clean-docs
 
 clean-build:
 	rm -fr build/
@@ -48,6 +48,9 @@ coverage:
 	coverage report -m
 	coverage html
 	python -m webbrowser htmlcov/index.html
+
+clean-docs:
+	$(MAKE) -C docs clean
 
 docs:
 	rm -f docs/fuzzyraft.rst
