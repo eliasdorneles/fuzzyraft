@@ -15,7 +15,7 @@ from fuzzyraft import fuzzyraft
 
 class TestFuzzyraft(unittest.TestCase):
     def test_node_initial_state_is_follower(self):
-        node = fuzzyraft.Node()
+        node = fuzzyraft.Node("nodetest1", {})
         self.assertEquals(node.state, fuzzyraft.State.FOLLOWER)
 
 if __name__ == '__main__':
