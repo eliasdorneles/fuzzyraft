@@ -3,8 +3,10 @@
 """
 
 from __future__ import print_function
+import json
 from twisted.internet import protocol
 from twisted.internet import reactor
+from collections import namedtuple
 
 
 CONFIG = {
@@ -25,12 +27,36 @@ class State:
     LEADER = 2
 
 
+def to_dict(self):
+    d = {field: getattr(self, field) for field in self._fields}
+    d['type'] = self.__class__.__name__
+    return d
+
+
+def to_json(self):
+    return json.dumps(self.to_dict())
+
+
+AppendEntries = namedtuple(
+    'AppendEntries',
+    'term leaderId prevLogIndex prevLogTerm entries leaderCommit')
+
+RequestVote = namedtuple(
+    'RequestVote',
+    'term candidateId lastLogIndex lastLogTerm')
+
+AppendEntries.to_dict = RequestVote.to_dict = to_dict
+AppendEntries.to_json = RequestVote.to_json = to_json
+
+
 class Node(object):
     def __init__(self, name, config):
         self.name = name
         self.state = State.FOLLOWER
         self.config = config
         self.peers = []
+        self.term = 0
+        self.voteCount = 0
 
     def __repr__(self):
         return '%s(name=%s, state=%s, peers=%r)' % (
@@ -43,12 +69,30 @@ class RaftNodeInputProtocol(protocol.Protocol):
     def connectionMade(self):
         print('Connected to: %s' % (self.transport.getPeer()))
 
+        election_timeout = 10
+        reactor.callLater(election_timeout, self.maybeStartElection)
+
+    def maybeStartElection(self):
+        if self.factory.shouldStartElection:
+            print('Will start election')
+            # TODO: vote for itself and send RequestVote to all peers
+        else:
+            print('Will NOT start election')
+
+    def dataReceived(self, data):
+        message = json.loads(data)
+        if message['type'] in ('AppendEntries', 'RequestVote'):
+            self.factory.shouldStartElection = False
+        else:
+            raise ValueError('Unknown message')
+
 
 class RaftNodeFactory(protocol.Factory):
     protocol = RaftNodeInputProtocol
 
     def __init__(self, myself):
         self.myself = myself
+        self.shouldStartElection = True
 
 
 class RaftNodeOutputProtocol(protocol.Protocol):
