@@ -27,26 +27,26 @@ class State:
     LEADER = 2
 
 
-def to_dict(self):
-    d = {field: getattr(self, field) for field in self._fields}
-    d['type'] = self.__class__.__name__
-    return d
+class JsonDictMixin(object):
+
+    def to_dict(self):
+        d = {field: getattr(self, field) for field in self._fields}
+        d['type'] = self.__class__.__name__
+        return d
+
+    def to_json(self):
+        return json.dumps(self.to_dict())
 
 
-def to_json(self):
-    return json.dumps(self.to_dict())
+class AppendEntries(namedtuple('AppendEntries',
+                               'term leaderId prevLogIndex prevLogTerm entries leaderCommit'),
+                    JsonDictMixin):
+    pass
 
 
-AppendEntries = namedtuple(
-    'AppendEntries',
-    'term leaderId prevLogIndex prevLogTerm entries leaderCommit')
-
-RequestVote = namedtuple(
-    'RequestVote',
-    'term candidateId lastLogIndex lastLogTerm')
-
-AppendEntries.to_dict = RequestVote.to_dict = to_dict
-AppendEntries.to_json = RequestVote.to_json = to_json
+class RequestVote(namedtuple('RequestVote', 'term candidateId lastLogIndex lastLogTerm'),
+                  JsonDictMixin):
+    pass
 
 
 class Node(object):
@@ -114,6 +114,12 @@ class RaftNodeClientFactory(protocol.ReconnectingClientFactory):
         self.myself.peers.append(protocol)
 
 
+def get_config_for_peers(myself, CONFIG):
+    for node, cfg in CONFIG.items():
+        if node != myself.name:
+            yield node, cfg
+
+
 def start(args):
     config = CONFIG[args.node]
 
@@ -122,12 +128,11 @@ def start(args):
     print('Listening on port %d' % config['port'])
     reactor.listenTCP(config['port'], RaftNodeFactory(myself))
 
-    for node, cfg in CONFIG.items():
-        if node != args.node:
-            print('Connecting to: {node} ({address}:{port})'.format(node=node,
-                                                                    **cfg))
-            reactor.connectTCP(cfg['address'], cfg['port'],
-                               RaftNodeClientFactory(myself), timeout=10)
+    for node, cfg in get_config_for_peers(myself, CONFIG):
+        print('Connecting to: {node} ({address}:{port})'.format(node=node,
+                                                                **cfg))
+        reactor.connectTCP(cfg['address'], cfg['port'],
+                           RaftNodeClientFactory(myself), timeout=10)
     reactor.run()
 
 
